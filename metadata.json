@@ -1,0 +1,6 @@
+{
+  "name": "Room Showcase",
+  "description": "A lightweight room showcase page directly connected to the room booking API, allowing users to send inquiries via WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
