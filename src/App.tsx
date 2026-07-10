@@ -13,6 +13,15 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [sendingWhatsApp, setSendingWhatsApp] = useState<boolean>(false);
+  const [whatsAppStatus, setWhatsAppStatus] = useState<string>("");
+
+  // WhatsApp numbers to send requests to
+  const WHATSAPP_NUMBERS = [
+    "9447394111",
+    "9656359111", 
+    "8606754055"
+  ];
 
   const fetchRooms = async () => {
     setLoading(true);
@@ -27,8 +36,6 @@ export default function App() {
         throw new Error("Invalid response format received from server");
       }
       
-      // Filter out empty or obviously broken elements if any, or sort them nicely
-      // But keep all data as requested. Let's sort by ID to stay consistent
       const sortedData = [...data].sort((a, b) => a.id - b.id);
       setRooms(sortedData);
     } catch (err: any) {
@@ -46,7 +53,6 @@ export default function App() {
     room.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Generate some high-end, elegant matching subtle style accents based on ID or Name
   const getRoomStyle = (roomName: string, id: number) => {
     const lName = roomName.toLowerCase();
     if (lName.includes("deluxe")) {
@@ -90,7 +96,6 @@ export default function App() {
       };
     }
     
-    // Fallback/Default style variants based on ID to make the list look rich and varied
     const colorSchemes = [
       {
         bgGradient: "from-slate-50 to-neutral-50",
@@ -120,7 +125,58 @@ export default function App() {
     return colorSchemes[id % colorSchemes.length];
   };
 
-  const handleWhatsAppClick = (room: Room) => {
+  // Method 1: Using WhatsApp API (requires backend)
+  const sendWhatsAppViaAPI = async (room: Room) => {
+    setSendingWhatsApp(true);
+    setWhatsAppStatus("Sending messages...");
+    
+    const message = `Hello,
+I am interested in booking:
+
+Room: ${room.name}
+Price: ₹${room.price}
+Capacity: ${room.capacity}
+
+Please provide availability details.`;
+
+    try {
+      // Send to your backend which uses WhatsApp Business API
+      const response = await fetch('https://your-backend-api.com/send-whatsapp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          numbers: WHATSAPP_NUMBERS,
+          message: message,
+          room: room
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send WhatsApp messages');
+      }
+
+      const result = await response.json();
+      setWhatsAppStatus(`✓ Messages sent successfully to ${WHATSAPP_NUMBERS.length} numbers!`);
+      
+      // Reset status after 5 seconds
+      setTimeout(() => setWhatsAppStatus(""), 5000);
+      
+    } catch (error) {
+      console.error("Error sending WhatsApp messages:", error);
+      setWhatsAppStatus("✗ Failed to send messages. Please try again.");
+      setTimeout(() => setWhatsAppStatus(""), 5000);
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
+
+  // Method 2: Auto-open WhatsApp tabs (no backend required)
+  const sendWhatsAppAutoOpen = async (room: Room) => {
+    setSendingWhatsApp(true);
+    setWhatsAppStatus(`Opening WhatsApp for ${WHATSAPP_NUMBERS.length} numbers...`);
+    
     const textMessage = `Hello,
 I am interested in booking:
 
@@ -130,8 +186,87 @@ Capacity: ${room.capacity}
 
 Please provide availability details.`;
 
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(textMessage)}`;
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    const encodedMessage = encodeURIComponent(textMessage);
+    
+    try {
+      // Open WhatsApp for each number with a delay
+      for (let i = 0; i < WHATSAPP_NUMBERS.length; i++) {
+        const number = WHATSAPP_NUMBERS[i];
+        const whatsappUrl = `https://wa.me/+91${number}?text=${encodedMessage}`;
+        
+        // Open in new tab
+        window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+        
+        setWhatsAppStatus(`Opening WhatsApp for ${number}... (${i + 1}/${WHATSAPP_NUMBERS.length})`);
+        
+        // Add delay between openings to prevent browser blocking
+        if (i < WHATSAPP_NUMBERS.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 800));
+        }
+      }
+      
+      setWhatsAppStatus(`✓ All ${WHATSAPP_NUMBERS.length} WhatsApp chats opened!`);
+      setTimeout(() => setWhatsAppStatus(""), 5000);
+      
+    } catch (error) {
+      console.error("Error opening WhatsApp:", error);
+      setWhatsAppStatus("✗ Failed to open WhatsApp. Please check your connection.");
+      setTimeout(() => setWhatsAppStatus(""), 5000);
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
+
+  // Method 3: Using Email-to-WhatsApp gateway (alternative)
+  const sendWhatsAppViaEmail = async (room: Room) => {
+    setSendingWhatsApp(true);
+    setWhatsAppStatus("Sending messages via email gateway...");
+    
+    const message = `Room: ${room.name}
+Price: ₹${room.price}
+Capacity: ${room.capacity}
+Please provide availability details.`;
+
+    try {
+      // Send to email gateway that forwards to WhatsApp
+      const response = await fetch('https://your-email-gateway.com/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: WHATSAPP_NUMBERS.map(num => `${num}@whatsapp.gateway.com`),
+          subject: `Booking Inquiry: ${room.name}`,
+          body: message
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send via email gateway');
+      }
+
+      setWhatsAppStatus(`✓ Messages sent successfully via email gateway!`);
+      setTimeout(() => setWhatsAppStatus(""), 5000);
+      
+    } catch (error) {
+      console.error("Error sending via email gateway:", error);
+      setWhatsAppStatus("✗ Failed to send messages.");
+      setTimeout(() => setWhatsAppStatus(""), 5000);
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
+
+  // Choose which method to use
+  const handleWhatsAppClick = (room: Room) => {
+    // Option 1: Using API (recommended for production)
+    // sendWhatsAppViaAPI(room);
+    
+    // Option 2: Auto-open tabs (no backend needed, but requires user to allow pop-ups)
+    sendWhatsAppAutoOpen(room);
+    
+    // Option 3: Email gateway (alternative)
+    // sendWhatsAppViaEmail(room);
   };
 
   return (
@@ -179,7 +314,20 @@ Please provide availability details.`;
           </div>
         )}
 
-        {/* Loading State with Skeletal Shimmer Pattern */}
+        {/* WhatsApp Status Message */}
+        {whatsAppStatus && (
+          <div className="max-w-md mx-auto mb-8">
+            <div className={`px-4 py-3 rounded-xl text-sm font-medium text-center ${
+              whatsAppStatus.includes('✓') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+              whatsAppStatus.includes('✗') ? 'bg-red-50 text-red-700 border border-red-200' :
+              'bg-blue-50 text-blue-700 border border-blue-200'
+            }`}>
+              {whatsAppStatus}
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
         {loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10">
             {[1, 2, 3, 4, 5, 6].map((idx) => (
@@ -187,29 +335,22 @@ Please provide availability details.`;
                 key={idx}
                 className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden p-6 md:p-8 space-y-6"
               >
-                {/* Simulated Visual Accent Area */}
                 <div className="h-28 w-full bg-slate-100/80 rounded-2xl animate-pulse" />
-                
-                {/* Title skeleton */}
                 <div className="space-y-3">
                   <div className="h-6 w-3/4 bg-slate-100/80 rounded-md animate-pulse" />
                   <div className="h-4 w-1/2 bg-slate-100/80 rounded-md animate-pulse" />
                 </div>
-                
-                {/* Details skeleton */}
                 <div className="pt-4 border-t border-slate-100 space-y-2">
                   <div className="h-4 w-1/3 bg-slate-100/80 rounded-md animate-pulse" />
                   <div className="h-4 w-1/4 bg-slate-100/80 rounded-md animate-pulse" />
                 </div>
-                
-                {/* Button skeleton */}
                 <div className="h-12 w-full bg-slate-100/80 rounded-xl animate-pulse" />
               </div>
             ))}
           </div>
         )}
 
-        {/* Error State Banner */}
+        {/* Error State */}
         {error && !loading && (
           <div className="max-w-xl mx-auto bg-white rounded-3xl p-8 md:p-10 border border-red-100 shadow-xl shadow-red-500/5 text-center space-y-6">
             <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
@@ -236,7 +377,7 @@ Please provide availability details.`;
           </div>
         )}
 
-        {/* Empty State when API successfully returns empty array */}
+        {/* Empty State */}
         {!loading && !error && rooms.length === 0 && (
           <div className="max-w-md mx-auto bg-white rounded-3xl p-10 border border-slate-100 shadow-sm text-center space-y-6">
             <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center mx-auto border border-slate-100 shadow-inner">
@@ -251,7 +392,7 @@ Please provide availability details.`;
           </div>
         )}
 
-        {/* Room Grid Showcase Container */}
+        {/* Room Grid */}
         {!loading && !error && rooms.length > 0 && (
           <>
             {filteredRooms.length > 0 ? (
@@ -265,9 +406,8 @@ Please provide availability details.`;
                       id={`room-card-${room.id}`}
                       className="group relative bg-white rounded-[32px] border border-slate-100/90 shadow-sm hover:shadow-xl hover:-translate-y-1.5 duration-300 transition-all overflow-hidden flex flex-col h-full"
                     >
-                      {/* Decorative Geometric Header Panel - premium minimalist design style */}
+                      {/* Header */}
                       <div className={`h-24 px-6 md:px-8 pt-6 relative flex items-start justify-between bg-gradient-to-br ${style.bgGradient}`}>
-                        {/* SVG abstract architectural outline rendering behind card */}
                         <div className="absolute inset-0 opacity-[0.14] group-hover:opacity-[0.22] transition-opacity duration-300 pointer-events-none">
                           <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
                             <defs>
@@ -292,7 +432,7 @@ Please provide availability details.`;
                         </span>
                       </div>
 
-                      {/* Main Card Information Area */}
+                      {/* Content */}
                       <div className="p-6 md:p-8 flex flex-col flex-grow justify-between space-y-6">
                         <div className="space-y-3">
                           <h2 className="text-xl md:text-2xl font-bold text-slate-900 group-hover:text-slate-900/90 transition-colors line-clamp-1 tracking-tight font-display">
@@ -303,9 +443,8 @@ Please provide availability details.`;
                           </p>
                         </div>
 
-                        {/* Pricing and Details Rows */}
+                        {/* Pricing and Details */}
                         <div className="pt-4 border-t border-slate-100/80 space-y-4">
-                          {/* Pricing Row */}
                           <div className="flex items-baseline justify-between">
                             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                               Price per Night
@@ -317,7 +456,6 @@ Please provide availability details.`;
                             </div>
                           </div>
 
-                          {/* Guest Capacity Row */}
                           <div className="flex items-center justify-between py-1.5 px-3.5 bg-slate-50 rounded-2xl border border-slate-100">
                             <span className="text-xs font-medium text-slate-500 flex items-center gap-2">
                               <User className="w-4 h-4 text-slate-400" />
@@ -329,13 +467,23 @@ Please provide availability details.`;
                           </div>
                         </div>
 
-                        {/* Direct inquiry CTA */}
+                        {/* WhatsApp Button */}
                         <button
                           onClick={() => handleWhatsAppClick(room)}
-                          className="w-full inline-flex items-center justify-center gap-2.5 py-4 px-6 rounded-2xl bg-[#25D366] hover:bg-[#20ba59] active:scale-[0.98] text-white font-semibold text-sm transition-all duration-250 shadow-md shadow-emerald-500/10 hover:shadow-lg hover:shadow-emerald-500/15 cursor-pointer"
+                          disabled={sendingWhatsApp}
+                          className="w-full inline-flex items-center justify-center gap-2.5 py-4 px-6 rounded-2xl bg-[#25D366] hover:bg-[#20ba59] active:scale-[0.98] text-white font-semibold text-sm transition-all duration-250 shadow-md shadow-emerald-500/10 hover:shadow-lg hover:shadow-emerald-500/15 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                          <MessageCircle className="w-4 h-4 fill-white text-emerald-500 stroke-[2.5px]" />
-                          Request on WhatsApp
+                          {sendingWhatsApp ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <MessageCircle className="w-4 h-4 fill-white text-emerald-500 stroke-[2.5px]" />
+                              Request on WhatsApp
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -364,7 +512,7 @@ Please provide availability details.`;
           </>
         )}
 
-        {/* Bottom Attribution Footer */}
+        {/* Footer */}
         <footer className="mt-24 pt-8 border-t border-slate-200/60 text-center text-xs text-slate-400">
           <p className="flex items-center justify-center gap-1">
             <span>Built by</span>
@@ -376,6 +524,9 @@ Please provide availability details.`;
             >
               Real American Technologies
             </a>
+          </p>
+          <p className="mt-2 text-[10px] text-slate-300">
+            Messages sent to: {WHATSAPP_NUMBERS.join(', ')}
           </p>
         </footer>
       </main>
